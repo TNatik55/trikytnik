@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>КАРТКАІНТЕРАКТИВ: Трикутники (НМТ+)</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root { --primary: #9b59b6; --success: #2ecc71; --danger: #e74c3c; --bg: #fdfeff; --text: #2c3e50; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; display: flex; justify-content: center; min-height: 100vh; }
+        .quiz-container { background: white; width: 100%; max-width: 800px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; position: relative; margin: auto; }
+        #timer-bar { height: 6px; background: var(--primary); width: 100%; position: absolute; top: 0; left: 0; border-radius: 20px 20px 0 0; transition: width 1s linear; }
+        .progress-info { color: #7f8c8d; font-size: 0.9rem; margin-bottom: 10px; }
+        .q-text { font-size: 1.25rem; margin: 15px 0; min-height: 3.5em; font-weight: 600; line-height: 1.4; color: #4b0082; }
+        .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .card { border: 2px solid #eee; border-radius: 12px; padding: 15px; cursor: pointer; transition: 0.3s; background: #fff; position: relative; text-align: left; }
+        .card:hover { transform: translateY(-3px); border-color: var(--primary); box-shadow: 0 5px 15px rgba(155, 89, 182, 0.1); }
+        .card.selected { border-color: var(--primary); background: #f9f0ff; }
+        .card.correct { border-color: var(--success); background: #eafff2; }
+        .card.wrong { border-color: var(--danger); background: #ffeaee; }
+        .label { font-weight: bold; color: var(--primary); margin-right: 10px; }
+        button { padding: 15px 35px; font-size: 1rem; border: none; border-radius: 50px; cursor: pointer; background: var(--primary); color: white; font-weight: bold; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #next-btn { display: none; background: var(--success); }
+        #feedback { font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; min-height: 1.5em; }
+        @media (max-width: 500px) { .options-grid { grid-template-columns: 1fr; } .q-text { font-size: 1.1rem; } }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <div id="timer-bar"></div>
+    <div class="progress-info">Геометрія НМТ | Трикутники | Питання <span id="q-num">1</span>/15</div>
+    <div class="q-text" id="q-text">Завантаження...</div>
+    <div class="options-grid" id="options"></div>
+    <div id="feedback"></div>
+    <button id="submit-btn" onclick="check()" disabled>Відповісти</button>
+    <button id="next-btn" onclick="next()">Наступне питання →</button>
+    <div id="res" style="display:none;">
+        <h1>Твій результат: <span id="f-score">0</span>/15</h1>
+        <p id="comment"></p>
+        <button onclick="location.reload()">Повторити теорію</button>
+    </div>
+</div>
+
+<script>
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function play(f) { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = f; g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.5); }
+
+const questions = [
+    { q: "У якому відношенні медіани трикутника діляться точкою їхнього перетину, рахуючи від вершини?", a: 2, opts: ["1 : 1", "1 : 2", "2 : 1", "3 : 1", "залежить від виду трикутника"] },
+    { q: "Яку властивість має бісектриса трикутника щодо протилежної сторони?", a: 0, opts: ["ділить її на відрізки, пропорційні прилеглим сторонам", "ділить її навпіл", "вона завжди перпендикулярна до неї", "ділить її у відношенні 2 : 1", "не має специфічних властивостей"] },
+    { q: "Центр кола, <b>вписаного</b> у трикутник, лежить у точці перетину:", a: 1, opts: ["медіан", "бісектрис", "висот (ортоцентр)", "серединних перпендикулярів", "зовнішніх кутів"] },
+    { q: "Центр кола, <b>описаного</b> навколо трикутника, лежить у точці перетину:", a: 3, opts: ["медіан", "бісектрис", "висот", "серединних перпендикулярів", "сторін"] },
+    { q: "Чому дорівнює площа трикутника через радіус вписаного кола \\(r\\) та півпериметр \\(p\\)?", a: 0, opts: ["\\(S = p \\cdot r\\)", "\\(S = 2pr\\)", "\\(S = p/r\\)", "\\(S = p^2 r\\)", "\\(S = \\frac{1}{2} pr\\)"] },
+    { q: "Як відносяться площі подібних трикутників, якщо коефіцієнт подібності дорівнює \\(k\\)?", a: 4, opts: ["як \\(k\\)", "як \\(2k\\)", "як \\(\\sqrt{k}\\)", "як \\(1/k\\)", "як \\(k^2\\)"] },
+    { q: "Медіана прямокутного трикутника, проведена до гіпотенузи, дорівнює:", a: 2, opts: ["самій гіпотенузі", "чверті гіпотенузи", "половині гіпотенузи", "гіпотенузі поділеній на \\(\\sqrt{2}\\)", "іншому катету"] },
+    { q: "Радіус кола, описаного навколо прямокутного трикутника, дорівнює:", a: 1, opts: ["половині суми катетів", "половині гіпотенузи", "висоті, проведеній до гіпотенузи", "меншому катету", "периметру"] },
+    { q: "Де лежить центр описаного кола у <b>тупокутному</b> трикутнику?", a: 4, opts: ["усередині трикутника", "на середині найбільшої сторони", "у вершині тупого кута", "на висоті", "поза межами трикутника"] },
+    { q: "Площа трикутника за трьома сторонами (формула Герона) потребує знання:", a: 2, opts: ["висоти", "кута", "півпериметра \\(p\\)", "радіуса", "медіани"] },
+    { q: "Середня лінія трикутника дорівнює:", a: 3, opts: ["третині сторони, якій вона паралельна", "самій стороні", "сумі двох інших сторін", "половині сторони, якій вона паралельна", "висоті"] },
+    { q: "Сума зовнішніх кутів трикутника, взятих по одному при кожній вершині, дорівнює:", a: 2, opts: ["180°", "270°", "360°", "540°", "залежить від кутів"] },
+    { q: "Зовнішній кут трикутника дорівнює:", a: 0, opts: ["сумі двох внутрішніх кутів, не суміжних з ним", "180° мінус цей кут", "внутрішньому суміжному куту", "сумі всіх внутрішніх кутів", "90°"] },
+    { q: "Яка з формул площі трикутника використовує радіус <b>описаного</b> кола \\(R\\)?", a: 1, opts: ["\\(S = pR\\)", "\\(S = \\frac{abc}{4R}\\)", "\\(S = \\frac{ab}{R}\\)", "\\(S = 2R \\sin A\\)", "\\(S = \\frac{1}{2} a b R\\)"] },
+    { q: "Якщо трикутник зі сторонами 3, 4, 5 — то він:", a: 3, opts: ["гострокутний", "рівнобедрений", "тупокутний", "прямокутний", "рівносторонній"] }
+];
+
+let cur = 0, score = 0, selected = null, timer, timeLeft = 20;
+
+function startT() {
+    timeLeft = 20; document.getElementById('timer-bar').style.width = "100%";
+    clearInterval(timer);
+    timer = setInterval(() => {
+        timeLeft--; document.getElementById('timer-bar').style.width = (timeLeft/20*100) + "%";
+        if(timeLeft <= 0) { clearInterval(timer); check(true); }
+    }, 1000);
+}
+
+function load() {
+    startT();
+    const q = questions[cur];
+    document.getElementById('q-num').innerText = cur + 1;
+    document.getElementById('q-text').innerHTML = q.q;
+    const cont = document.getElementById('options'); cont.innerHTML = '';
+    q.opts.forEach((o, i) => {
+        const d = document.createElement('div'); d.className = 'card';
+        d.innerHTML = `<span class="label">${String.fromCharCode(65+i)}</span> ${o}`;
+        d.onclick = () => { if(document.getElementById('next-btn').style.display==='block') return; selected=i; document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected')); d.classList.add('selected'); document.getElementById('submit-btn').disabled=false; };
+        cont.appendChild(d);
+    });
+    if(window.MathJax) MathJax.typeset();
+    document.getElementById('feedback').innerText = '';
+    document.getElementById('submit-btn').style.display = 'inline-block';
+    document.getElementById('submit-btn').disabled = true;
+    document.getElementById('next-btn').style.display = 'none';
+}
+
+function check(tmo) {
+    clearInterval(timer);
+    const corr = questions[cur].a, cards = document.querySelectorAll('.card'), f = document.getElementById('feedback');
+    if(tmo) { play(150); f.innerHTML = "<span style='color:var(--danger)'>⌛ Час вийшов!</span>"; }
+    else if(selected === corr) { score++; play(600); f.innerHTML = "<span style='color:var(--success)'>⭐ Правильно!</span>"; cards[selected].classList.add('correct'); }
+    else { play(150); f.innerHTML = "<span style='color:var(--danger)'>❌ Помилка!</span>"; if(selected!==null) cards[selected].classList.add('wrong'); }
+    cards[corr].classList.add('correct');
+    document.getElementById('submit-btn').style.display = 'none';
+    document.getElementById('next-btn').style.display = 'inline-block';
+}
+
+function next() {
+    cur++; if(cur < questions.length) { selected=null; load(); }
+    else { 
+        document.getElementById('q-text').style.display='none'; 
+        document.getElementById('options').style.display='none'; 
+        document.getElementById('submit-btn').style.display='none'; 
+        document.getElementById('next-btn').style.display='none'; 
+        document.getElementById('res').style.display='block'; 
+        document.getElementById('f-score').innerText=score;
+        document.getElementById('comment').innerText = score > 12 ? "Ти справжній гуру геометрії! НМТ буде твоїм!" : "Добре, але повтори властивості центрів кіл!";
+    }
+}
+
+load();
+</script>
+</body>
+</html>
